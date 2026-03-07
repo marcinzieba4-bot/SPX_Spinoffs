@@ -178,10 +178,27 @@ _RAW_SPINOFFS = [
          sp500_parent=True,
          sp500_note="UTX in S&P 500; same as above"),
 
+    # !! CORRECTED: HWM is NOT the spinoff — it is the PARENT CONTINUATION.
+    #    On April 1, 2020, old Arconic Inc. (ARNC) renamed itself Howmet Aerospace (HWM)
+    #    and spun off the new Arconic Corporation (new ARNC, rolled products).
+    #    HWM kept the S&P 500 slot; new ARNC went to S&P SmallCap 600.
+    #    We must trade the SPINOFF (new ARNC), NOT the parent (HWM).
     dict(ticker="HWM",  parent="ARNC", date="2020-04-01",
-         desc="Howmet Aerospace from Arconic",
+         desc="Howmet Aerospace — PARENT CONTINUATION, not spinoff",
+         sp500_parent=False,
+         sp500_note="HWM is NOT a spinoff. HWM = old Arconic (ARNC) renamed to Howmet Aerospace. "
+                    "The actual spinoff was NEW ARNC (Arconic Corp, rolled products → S&P SmallCap 600). "
+                    "Corrected per agent verification: old ARNC became HWM (stayed in S&P 500)."),
+
+    # The ACTUAL spinoff from the April 2020 Arconic split.
+    # Old ARNC (S&P 500) → became HWM (parent). New ARNC (Arconic Corp) = spinoff.
+    # New ARNC taken private by Apollo Global in 2021 → data likely unavailable.
+    dict(ticker="ARNC", parent="HWM",  date="2020-04-01",
+         desc="Arconic Corp (new) from old Arconic / Howmet (HWM)",
          sp500_parent=True,
-         sp500_note="ARNC (Arconic, formerly old Alcoa) in S&P 500 at time of 2020 split"),
+         sp500_note="Old Arconic Inc. (pre-split ARNC ticker, S&P 500 member) spun off new Arconic Corp. "
+                    "New ARNC is the spinoff (rolled products, S&P SmallCap 600). "
+                    "Taken private by Apollo Global Management in 2021; price data likely unavailable."),
 
     dict(ticker="VNT",  parent="FTV",  date="2020-10-09",
          desc="Vontier from Fortive",
@@ -189,11 +206,15 @@ _RAW_SPINOFFS = [
          sp500_note="FTV in S&P 500; Fortive added to S&P 500 at spinoff from Danaher 2016"),
 
     # ── 2021 ──────────────────────────────────────────────────────────────
+    # !! EXCLUDED: XPO Logistics was S&P MidCap 400, NOT S&P 500.
+    #    Confirmed by S&P Global press release (2021-07-27): "S&P MidCap 400 constituent
+    #    XPO Logistics... GXO Logistics set to join S&P MidCap 400."
     dict(ticker="GXO",  parent="XPO",  date="2021-08-02",
-         desc="GXO Logistics from XPO Inc",
-         sp500_parent=True,
-         sp500_note="XPO in S&P 500; XPO Logistics added to S&P 500 ~September 2015, "
-                    "confirmed still constituent through 2021"),
+         desc="GXO Logistics from XPO Logistics",
+         sp500_parent=False,
+         sp500_note="XPO was S&P MidCap 400, NOT S&P 500. Confirmed: S&P Global press release "
+                    "(Jul 27 2021) states 'S&P MidCap 400 constituent XPO Logistics' — "
+                    "GXO joined MidCap 400, not S&P 500. Fails our parent-in-S&P-500 filter."),
 
     dict(ticker="KD",   parent="IBM",  date="2021-11-04",
          desc="Kyndryl Holdings from IBM",
@@ -206,10 +227,15 @@ _RAW_SPINOFFS = [
          sp500_parent=True,
          sp500_note="EXC in S&P 500; Exelon was established large-cap utility constituent"),
 
+    # !! EXCLUDED: Same XPO/MidCap 400 issue as GXO.
+    #    S&P Global press release (Oct 28 2022): "XPO Logistics' RXO spin-off to join
+    #    S&P MidCap 400 Index" — XPO remained in MidCap 400, not S&P 500.
     dict(ticker="RXO",  parent="XPO",  date="2022-11-01",
-         desc="RXO Inc from XPO",
-         sp500_parent=True,
-         sp500_note="XPO in S&P 500; same as GXO note above"),
+         desc="RXO Inc from XPO Logistics",
+         sp500_parent=False,
+         sp500_note="XPO was S&P MidCap 400, NOT S&P 500. Confirmed: S&P Global press release "
+                    "(Oct 28 2022) states RXO joins S&P MidCap 400 and XPO remains in MidCap 400. "
+                    "Fails our parent-in-S&P-500 filter."),
 
     # ── 2023 ──────────────────────────────────────────────────────────────
     dict(ticker="GEHC", parent="GE",   date="2023-01-04",
