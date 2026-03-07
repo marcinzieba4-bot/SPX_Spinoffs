@@ -47,33 +47,58 @@ plt.rcParams.update({'font.size': 9, 'font.family': 'DejaVu Sans'})
 # ============================================================
 SPINOFFS = [
     # (ticker,  parent,  spinoff_date,   description)
+    # ── 2011 ──────────────────────────────────────────────────────────────
     ("MPC",   "MRO",   "2011-07-01",  "Marathon Petroleum from Marathon Oil"),
+    # ── 2012 ──────────────────────────────────────────────────────────────
     ("ADT",   "TYC",   "2012-09-28",  "ADT Security from Tyco International"),
+    # ── 2013 ──────────────────────────────────────────────────────────────
     ("ABBV",  "ABT",   "2013-01-02",  "AbbVie from Abbott Laboratories"),
     ("ZTS",   "PFE",   "2013-02-01",  "Zoetis from Pfizer"),
     ("VOYA",  "ING",   "2013-05-02",  "Voya Financial from ING Group"),
+    # MNK spun from COV (S&P 500 member); later went bankrupt — MUST include per rules
+    ("MNK",   "COV",   "2013-07-01",  "Mallinckrodt from Covidien"),
+    # ── 2014 ──────────────────────────────────────────────────────────────
     ("SYF",   "GE",    "2014-07-31",  "Synchrony Financial from General Electric"),
+    # ── 2015 ──────────────────────────────────────────────────────────────
     ("PYPL",  "EBAY",  "2015-07-20",  "PayPal from eBay"),
     ("HPE",   "HPQ",   "2015-11-02",  "HP Enterprise from Hewlett-Packard"),
     ("BXLT",  "BAX",   "2015-07-01",  "Baxalta from Baxter International"),
+    # ── 2016 ──────────────────────────────────────────────────────────────
     ("FTV",   "DHR",   "2016-07-02",  "Fortive from Danaher"),
     ("AA",    "ARNC",  "2016-11-01",  "Alcoa Corp from Arconic"),
+    # ── 2017 ──────────────────────────────────────────────────────────────
     ("CNDT",  "XRX",   "2017-01-03",  "Conduent from Xerox"),
     ("DXC",   "HPE",   "2017-04-03",  "DXC Technology from HPE / CSC"),
+    # ── 2018 ──────────────────────────────────────────────────────────────
+    ("NVT",   "PNR",   "2018-05-01",  "nVent Electric from Pentair"),
+    # ── 2019 ──────────────────────────────────────────────────────────────
     ("DOW",   "DWDP",  "2019-04-01",  "Dow Inc from DowDuPont"),
     ("CTVA",  "DWDP",  "2019-06-03",  "Corteva Agriscience from DowDuPont"),
+    # ── 2020 ──────────────────────────────────────────────────────────────
     ("OTIS",  "UTX",   "2020-04-03",  "Otis Worldwide from United Technologies"),
     ("CARR",  "UTX",   "2020-04-03",  "Carrier Global from United Technologies"),
     ("HWM",   "ARNC",  "2020-04-01",  "Howmet Aerospace from Arconic"),
+    ("VNT",   "FTV",   "2020-10-09",  "Vontier from Fortive"),
+    # ── 2021 ──────────────────────────────────────────────────────────────
     ("GXO",   "XPO",   "2021-08-02",  "GXO Logistics from XPO Inc"),
     ("KD",    "IBM",   "2021-11-04",  "Kyndryl Holdings from IBM"),
+    # ── 2022 ──────────────────────────────────────────────────────────────
     ("CEG",   "EXC",   "2022-01-03",  "Constellation Energy from Exelon"),
     ("RXO",   "XPO",   "2022-11-01",  "RXO Inc from XPO"),
+    # ── 2023 ──────────────────────────────────────────────────────────────
     ("GEHC",  "GE",    "2023-01-04",  "GE HealthCare from General Electric"),
     ("KVUE",  "JNJ",   "2023-05-04",  "Kenvue from Johnson & Johnson"),
     ("VLTO",  "DHR",   "2023-09-14",  "Veralto from Danaher"),
+    # ── 2024 ──────────────────────────────────────────────────────────────
     ("SOLV",  "MMM",   "2024-04-01",  "Solventum from 3M"),
     ("GEV",   "GE",    "2024-04-02",  "GE Vernova from General Electric"),
+    # ── 2025 ── (open positions — simulated to latest available price) ────
+    # SNDK: WDC was S&P 500 member; SNDK went to S&P SmallCap 600
+    ("SNDK",  "WDC",   "2025-02-24",  "SanDisk from Western Digital"),
+    # SOLS: HON was S&P 500; Solstice Advanced Materials joined S&P 500 Oct 2025
+    ("SOLS",  "HON",   "2025-10-30",  "Solstice Advanced Materials from Honeywell"),
+    # Q: EMN was S&P 500; Qnity Electronics joined S&P 500 Oct 2025
+    ("Q",     "EMN",   "2025-10-31",  "Qnity Electronics from Eastman Chemical"),
 ]
 
 # ── Strategy parameters ────────────────────────────────────────────────────────
@@ -800,14 +825,16 @@ def make_methodology_page(pdf):
             "        This lag ensures the bulk of forced/index selling is complete.",
             "EXIT:   Sell exactly 365 calendar days (≈1 year) after entry.",
             "        Academic research shows alpha peaks around 12–18 months; we capture year 1.",
+            "        For positions < 1 year old, we use the latest available price (open trade).",
             "FILTER: Parent company must have been an S&P 500 constituent at spinoff date.",
-            "        This ensures the spinoff is institutional-grade and data-available.",
+            "        The spinoff itself need not be in the S&P 500 (e.g. SNDK went to SmallCap 600).",
+            "        Example: Mallinckrodt (MNK) is INCLUDED because parent Covidien (COV) was SPX.",
             "SIZE:   Equal dollar weight per trade. No leverage.",
             "BENCH:  Total return SPY over the identical entry-to-exit window.",
         ]),
         ("RISKS & LIMITATIONS", [
-            "• Spinoffs can fail — some trade to zero (e.g., Mallinckrodt, Conduent).",
-            "• Survivorship bias: companies with no tradeable data excluded (5 of 27 universe).",
+            "• Spinoffs can fail — some trade to zero (e.g., Mallinckrodt/MNK bankrupt 2020, GXO -48%).",
+            "• Survivorship bias: companies with no tradeable data excluded (e.g., ADT 2012, Baxalta).",
             "• Transaction costs not modelled — spinoffs often have wide bid-ask spreads initially.",
             "• Sample size is small (~20 completed trades); statistical significance is limited.",
             "• Strategy works best in bull markets; alpha shrinks in bear markets.",
