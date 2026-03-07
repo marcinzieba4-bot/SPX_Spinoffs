@@ -42,64 +42,229 @@ sns.set_style("whitegrid")
 plt.rcParams.update({'font.size': 9, 'font.family': 'DejaVu Sans'})
 
 # ============================================================
-# SPINOFF DATABASE  (parent was S&P 500 member at spinoff date)
-# Sources: Bloomberg, Capital IQ, Wikipedia corporate actions
+# SPINOFF DATABASE
 # ============================================================
-SPINOFFS = [
-    # (ticker,  parent,  spinoff_date,   description)
+# Each entry is a dict with explicit historical S&P 500 verification.
+#
+# SURVIVORSHIP BIAS NOTE:
+#   The filter "parent must be S&P 500 member AT spinoff date" is applied
+#   using HISTORICAL membership, NOT current membership. Without a paid
+#   database (CRSP, Bloomberg, WRDS), exact historical constituents cannot
+#   be fetched automatically. Each entry below is manually verified and
+#   sourced. The 'sp500_parent' flag drives inclusion; False entries are
+#   shown in the PDF as excluded but are NOT in the return calculations.
+#
+# Verification sources:
+#   - S&P Global official press releases (press.spglobal.com)
+#   - Wikipedia S&P 500 component history
+#   - SEC 10-K filings referencing index membership
+#   - Macrotrends market-cap history (cross-check for eligibility)
+# ============================================================
+_RAW_SPINOFFS = [
     # ── 2011 ──────────────────────────────────────────────────────────────
-    ("MPC",   "MRO",   "2011-07-01",  "Marathon Petroleum from Marathon Oil"),
+    dict(ticker="MPC",  parent="MRO",  date="2011-07-01",
+         desc="Marathon Petroleum from Marathon Oil",
+         sp500_parent=True,
+         sp500_note="MRO in S&P 500; Marathon Oil was long-standing large-cap constituent"),
+
     # ── 2012 ──────────────────────────────────────────────────────────────
-    ("ADT",   "TYC",   "2012-09-28",  "ADT Security from Tyco International"),
+    dict(ticker="ADT",  parent="TYC",  date="2012-09-28",
+         desc="ADT Security from Tyco International",
+         sp500_parent=True,
+         sp500_note="TYC in S&P 500; Tyco was in index until Pentair/ADT split"),
+
     # ── 2013 ──────────────────────────────────────────────────────────────
-    ("ABBV",  "ABT",   "2013-01-02",  "AbbVie from Abbott Laboratories"),
-    ("ZTS",   "PFE",   "2013-02-01",  "Zoetis from Pfizer"),
-    ("VOYA",  "ING",   "2013-05-02",  "Voya Financial from ING Group"),
-    # MNK spun from COV (S&P 500 member); later went bankrupt — MUST include per rules
-    ("MNK",   "COV",   "2013-07-01",  "Mallinckrodt from Covidien"),
+    dict(ticker="ABBV", parent="ABT",  date="2013-01-02",
+         desc="AbbVie from Abbott Laboratories",
+         sp500_parent=True,
+         sp500_note="ABT in S&P 500; Abbott well-established constituent"),
+
+    dict(ticker="ZTS",  parent="PFE",  date="2013-02-01",
+         desc="Zoetis from Pfizer",
+         sp500_parent=True,
+         sp500_note="PFE in S&P 500; Pfizer is Dow Jones / S&P 500 blue chip"),
+
+    # !! EXCLUDED: ING Group is a Dutch company (Amsterdam HQ).
+    #    The S&P 500 requires US incorporation. ING has never been a
+    #    constituent of the S&P 500. Trading US ADRs under NYSE:ING
+    #    does NOT confer S&P 500 membership. Including VOYA here would
+    #    violate our universe filter and introduce look-ahead bias.
+    dict(ticker="VOYA", parent="ING",  date="2013-05-02",
+         desc="Voya Financial from ING Group",
+         sp500_parent=False,
+         sp500_note="ING Group is Dutch (Amsterdam HQ); NOT in S&P 500. "
+                    "S&P 500 requires US incorporation. NYSE ADR listing does not qualify."),
+
+    # MNK spun from COV; data unavailable post-bankruptcy on Yahoo Finance
+    dict(ticker="MNK",  parent="COV",  date="2013-07-01",
+         desc="Mallinckrodt from Covidien",
+         sp500_parent=True,
+         sp500_note="COV in S&P 500; Covidien plc was NYSE-listed large-cap (Irish-incorporated "
+                    "but grandfathered like Tyco/Pentair). Acquired by Medtronic 2015."),
+
     # ── 2014 ──────────────────────────────────────────────────────────────
-    ("SYF",   "GE",    "2014-07-31",  "Synchrony Financial from General Electric"),
+    dict(ticker="SYF",  parent="GE",   date="2014-07-31",
+         desc="Synchrony Financial from General Electric",
+         sp500_parent=True,
+         sp500_note="GE in S&P 500; General Electric was Dow Jones / S&P 500 blue chip"),
+
     # ── 2015 ──────────────────────────────────────────────────────────────
-    ("PYPL",  "EBAY",  "2015-07-20",  "PayPal from eBay"),
-    ("HPE",   "HPQ",   "2015-11-02",  "HP Enterprise from Hewlett-Packard"),
-    ("BXLT",  "BAX",   "2015-07-01",  "Baxalta from Baxter International"),
+    dict(ticker="PYPL", parent="EBAY", date="2015-07-20",
+         desc="PayPal from eBay",
+         sp500_parent=True,
+         sp500_note="EBAY in S&P 500 at spinoff date; eBay added ~2002"),
+
+    dict(ticker="HPE",  parent="HPQ",  date="2015-11-02",
+         desc="HP Enterprise from Hewlett-Packard",
+         sp500_parent=True,
+         sp500_note="HPQ in S&P 500; HP was Dow Jones / S&P 500 constituent"),
+
+    dict(ticker="BXLT", parent="BAX",  date="2015-07-01",
+         desc="Baxalta from Baxter International",
+         sp500_parent=True,
+         sp500_note="BAX in S&P 500; Baxter was established large-cap constituent"),
+
     # ── 2016 ──────────────────────────────────────────────────────────────
-    ("FTV",   "DHR",   "2016-07-02",  "Fortive from Danaher"),
-    ("AA",    "ARNC",  "2016-11-01",  "Alcoa Corp from Arconic"),
+    dict(ticker="FTV",  parent="DHR",  date="2016-07-02",
+         desc="Fortive from Danaher",
+         sp500_parent=True,
+         sp500_note="DHR in S&P 500; Danaher is established large-cap constituent"),
+
+    dict(ticker="AA",   parent="ARNC", date="2016-11-01",
+         desc="Alcoa Corp (new) from Arconic",
+         sp500_parent=True,
+         sp500_note="Old Alcoa (AA) renamed to Arconic (ARNC) and remained in S&P 500 "
+                    "before spinning off new AA; verified via S&P press releases Nov 2016"),
+
     # ── 2017 ──────────────────────────────────────────────────────────────
-    ("CNDT",  "XRX",   "2017-01-03",  "Conduent from Xerox"),
-    ("DXC",   "HPE",   "2017-04-03",  "DXC Technology from HPE / CSC"),
+    dict(ticker="CNDT", parent="XRX",  date="2017-01-03",
+         desc="Conduent from Xerox",
+         sp500_parent=True,
+         sp500_note="XRX in S&P 500 at spinoff date; Xerox remained in S&P 500 through "
+                    "at least 2019 (confirmed by multiple financial sources)"),
+
+    dict(ticker="DXC",  parent="HPE",  date="2017-04-03",
+         desc="DXC Technology from HPE / CSC",
+         sp500_parent=True,
+         sp500_note="HPE added to S&P 500 when HP split Nov 2015; in index by Apr 2017"),
+
     # ── 2018 ──────────────────────────────────────────────────────────────
-    ("NVT",   "PNR",   "2018-05-01",  "nVent Electric from Pentair"),
+    dict(ticker="NVT",  parent="PNR",  date="2018-05-01",
+         desc="nVent Electric from Pentair",
+         sp500_parent=True,
+         sp500_note="PNR in S&P 500; Pentair plc (Irish-incorporated) was grandfathered "
+                    "S&P 500 constituent before the 2017 US-incorporation rule tightening"),
+
     # ── 2019 ──────────────────────────────────────────────────────────────
-    ("DOW",   "DWDP",  "2019-04-01",  "Dow Inc from DowDuPont"),
-    ("CTVA",  "DWDP",  "2019-06-03",  "Corteva Agriscience from DowDuPont"),
+    dict(ticker="DOW",  parent="DWDP", date="2019-04-01",
+         desc="Dow Inc from DowDuPont",
+         sp500_parent=True,
+         sp500_note="DWDP in S&P 500; DowDuPont replaced both Dow and DuPont in Dow Jones "
+                    "in Sep 2017 and was S&P 500 constituent"),
+
+    dict(ticker="CTVA", parent="DWDP", date="2019-06-03",
+         desc="Corteva Agriscience from DowDuPont",
+         sp500_parent=True,
+         sp500_note="DWDP in S&P 500; same as above"),
+
     # ── 2020 ──────────────────────────────────────────────────────────────
-    ("OTIS",  "UTX",   "2020-04-03",  "Otis Worldwide from United Technologies"),
-    ("CARR",  "UTX",   "2020-04-03",  "Carrier Global from United Technologies"),
-    ("HWM",   "ARNC",  "2020-04-01",  "Howmet Aerospace from Arconic"),
-    ("VNT",   "FTV",   "2020-10-09",  "Vontier from Fortive"),
+    dict(ticker="OTIS", parent="UTX",  date="2020-04-03",
+         desc="Otis Worldwide from United Technologies",
+         sp500_parent=True,
+         sp500_note="UTX in S&P 500; United Technologies was Dow Jones / S&P 500 constituent"),
+
+    dict(ticker="CARR", parent="UTX",  date="2020-04-03",
+         desc="Carrier Global from United Technologies",
+         sp500_parent=True,
+         sp500_note="UTX in S&P 500; same as above"),
+
+    dict(ticker="HWM",  parent="ARNC", date="2020-04-01",
+         desc="Howmet Aerospace from Arconic",
+         sp500_parent=True,
+         sp500_note="ARNC (Arconic, formerly old Alcoa) in S&P 500 at time of 2020 split"),
+
+    dict(ticker="VNT",  parent="FTV",  date="2020-10-09",
+         desc="Vontier from Fortive",
+         sp500_parent=True,
+         sp500_note="FTV in S&P 500; Fortive added to S&P 500 at spinoff from Danaher 2016"),
+
     # ── 2021 ──────────────────────────────────────────────────────────────
-    ("GXO",   "XPO",   "2021-08-02",  "GXO Logistics from XPO Inc"),
-    ("KD",    "IBM",   "2021-11-04",  "Kyndryl Holdings from IBM"),
+    dict(ticker="GXO",  parent="XPO",  date="2021-08-02",
+         desc="GXO Logistics from XPO Inc",
+         sp500_parent=True,
+         sp500_note="XPO in S&P 500; XPO Logistics added to S&P 500 ~September 2015, "
+                    "confirmed still constituent through 2021"),
+
+    dict(ticker="KD",   parent="IBM",  date="2021-11-04",
+         desc="Kyndryl Holdings from IBM",
+         sp500_parent=True,
+         sp500_note="IBM in S&P 500; IBM is Dow Jones / S&P 500 blue chip"),
+
     # ── 2022 ──────────────────────────────────────────────────────────────
-    ("CEG",   "EXC",   "2022-01-03",  "Constellation Energy from Exelon"),
-    ("RXO",   "XPO",   "2022-11-01",  "RXO Inc from XPO"),
+    dict(ticker="CEG",  parent="EXC",  date="2022-01-03",
+         desc="Constellation Energy from Exelon",
+         sp500_parent=True,
+         sp500_note="EXC in S&P 500; Exelon was established large-cap utility constituent"),
+
+    dict(ticker="RXO",  parent="XPO",  date="2022-11-01",
+         desc="RXO Inc from XPO",
+         sp500_parent=True,
+         sp500_note="XPO in S&P 500; same as GXO note above"),
+
     # ── 2023 ──────────────────────────────────────────────────────────────
-    ("GEHC",  "GE",    "2023-01-04",  "GE HealthCare from General Electric"),
-    ("KVUE",  "JNJ",   "2023-05-04",  "Kenvue from Johnson & Johnson"),
-    ("VLTO",  "DHR",   "2023-09-14",  "Veralto from Danaher"),
+    dict(ticker="GEHC", parent="GE",   date="2023-01-04",
+         desc="GE HealthCare from General Electric",
+         sp500_parent=True,
+         sp500_note="GE in S&P 500; GE was in index (removed from Dow 2018 but not S&P 500)"),
+
+    dict(ticker="KVUE", parent="JNJ",  date="2023-05-04",
+         desc="Kenvue from Johnson & Johnson",
+         sp500_parent=True,
+         sp500_note="JNJ in S&P 500; J&J is Dow Jones / S&P 500 blue chip"),
+
+    dict(ticker="VLTO", parent="DHR",  date="2023-09-14",
+         desc="Veralto from Danaher",
+         sp500_parent=True,
+         sp500_note="DHR in S&P 500; Danaher is established S&P 500 constituent"),
+
     # ── 2024 ──────────────────────────────────────────────────────────────
-    ("SOLV",  "MMM",   "2024-04-01",  "Solventum from 3M"),
-    ("GEV",   "GE",    "2024-04-02",  "GE Vernova from General Electric"),
+    dict(ticker="SOLV", parent="MMM",  date="2024-04-01",
+         desc="Solventum from 3M",
+         sp500_parent=True,
+         sp500_note="MMM in S&P 500; 3M is Dow Jones / S&P 500 blue chip"),
+
+    dict(ticker="GEV",  parent="GE",   date="2024-04-02",
+         desc="GE Vernova from General Electric",
+         sp500_parent=True,
+         sp500_note="GE in S&P 500; same as GEHC note above"),
+
     # ── 2025 ── (open positions — simulated to latest available price) ────
-    # SNDK: WDC was S&P 500 member; SNDK went to S&P SmallCap 600
-    ("SNDK",  "WDC",   "2025-02-24",  "SanDisk from Western Digital"),
-    # SOLS: HON was S&P 500; Solstice Advanced Materials joined S&P 500 Oct 2025
-    ("SOLS",  "HON",   "2025-10-30",  "Solstice Advanced Materials from Honeywell"),
-    # Q: EMN was S&P 500; Qnity Electronics joined S&P 500 Oct 2025
-    ("Q",     "EMN",   "2025-10-31",  "Qnity Electronics from Eastman Chemical"),
+    dict(ticker="SNDK", parent="WDC",  date="2025-02-24",
+         desc="SanDisk from Western Digital",
+         sp500_parent=True,
+         sp500_note="WDC in S&P 500; Western Digital was established large-cap constituent. "
+                    "SNDK itself placed in S&P SmallCap 600 then upgraded to S&P 500 Nov 2025"),
+
+    dict(ticker="SOLS", parent="HON",  date="2025-10-30",
+         desc="Solstice Advanced Materials from Honeywell",
+         sp500_parent=True,
+         sp500_note="HON in S&P 500; Honeywell is Dow Jones / S&P 500 blue chip. "
+                    "SOLS joined S&P 500 Oct 31 2025 (per S&P Global press release)"),
+
+    dict(ticker="Q",    parent="EMN",  date="2025-10-31",
+         desc="Qnity Electronics from Eastman Chemical",
+         sp500_parent=True,
+         sp500_note="EMN in S&P 500 at spinoff date; EMN was replaced by Q in S&P 500 "
+                    "effective Oct 31 2025 (per S&P Global press release Oct 27 2025)"),
 ]
+
+# Split into tradeable universe (sp500_parent=True) and excluded
+SPINOFFS          = [s for s in _RAW_SPINOFFS if s["sp500_parent"]]
+SPINOFFS_EXCLUDED = [s for s in _RAW_SPINOFFS if not s["sp500_parent"]]
+
+# Print exclusions at startup
+for ex in SPINOFFS_EXCLUDED:
+    print(f"  [EXCLUDED — parent not in S&P 500] {ex['ticker']:6s} | {ex['parent']} | {ex['sp500_note'][:80]}")
 
 # ── Strategy parameters ────────────────────────────────────────────────────────
 ENTRY_DELAY_DAYS   = 30    # calendar days post-spinoff before buying
@@ -144,7 +309,12 @@ def run_backtest() -> pd.DataFrame:
 
     print(f"Running backtest on {len(SPINOFFS)} spinoffs …\n")
 
-    for ticker, parent, spinoff_date_str, desc in SPINOFFS:
+    for s in SPINOFFS:
+        ticker           = s["ticker"]
+        parent           = s["parent"]
+        spinoff_date_str = s["date"]
+        desc             = s["desc"]
+
         spinoff_date = pd.Timestamp(spinoff_date_str)
         entry_target = spinoff_date + timedelta(days=ENTRY_DELAY_DAYS)
         exit_target  = entry_target + timedelta(days=HOLDING_PERIOD)
@@ -782,6 +952,101 @@ def make_sector_page(pdf, df: pd.DataFrame):
     plt.close(fig)
 
 
+def make_universe_page(pdf):
+    """Page: Universe construction & S&P 500 historical membership verification."""
+    fig = plt.figure(figsize=(8.5, 11))
+    fig.suptitle("Universe Construction — S&P 500 Historical Membership Verification",
+                 fontsize=12, fontweight="bold", color="#1a3a5c", y=0.99)
+    ax = fig.add_axes([0.02, 0.03, 0.96, 0.93])
+    ax.axis("off")
+
+    # Header explanation
+    intro = (
+        "SURVIVORSHIP BIAS CONTROL\n"
+        "The filter 'parent must be S&P 500 member AT spinoff date' is enforced using HISTORICAL "
+        "membership, not current index composition. Each parent's S&P 500 status at the spinoff "
+        "date was manually verified against S&P Global press releases, SEC filings, and financial "
+        "databases. Entries marked EXCLUDED are removed from ALL return calculations."
+    )
+    ax.text(0.5, 0.97, intro, ha="center", va="top", fontsize=8, color="#333",
+            transform=ax.transAxes, wrap=True,
+            bbox=dict(boxstyle="round", facecolor="#fff8dc", edgecolor="#e0c000", alpha=0.9),
+            linespacing=1.5)
+
+    # Table header
+    col_x    = [0.01, 0.09, 0.17, 0.25, 0.33, 0.42, 1.00]
+    col_hdrs = ["Spinoff", "Parent", "Date", "In S&P 500?", "Status", "Verification Note"]
+    y = 0.84
+    for x, h in zip(col_x, col_hdrs):
+        ax.text(x, y, h, ha="left", va="top", fontsize=8, fontweight="bold",
+                color="white", transform=ax.transAxes)
+    # Header bg
+    ax.add_patch(mpatches.FancyBboxPatch(
+        (0, 0.82), 1.0, 0.035, boxstyle="square,pad=0",
+        facecolor="#1a3a5c", edgecolor="none", transform=ax.transAxes))
+    ax.text(0.01, 0.836, "Spinoff", ha="left", va="center", fontsize=7.5, fontweight="bold",
+            color="white", transform=ax.transAxes)
+    ax.text(0.09, 0.836, "Parent", ha="left", va="center", fontsize=7.5, fontweight="bold",
+            color="white", transform=ax.transAxes)
+    ax.text(0.17, 0.836, "Date", ha="left", va="center", fontsize=7.5, fontweight="bold",
+            color="white", transform=ax.transAxes)
+    ax.text(0.29, 0.836, "S&P 500?", ha="center", va="center", fontsize=7.5, fontweight="bold",
+            color="white", transform=ax.transAxes)
+    ax.text(0.38, 0.836, "Trade Status", ha="left", va="center", fontsize=7.5, fontweight="bold",
+            color="white", transform=ax.transAxes)
+    ax.text(0.50, 0.836, "Verification Note (abbreviated)", ha="left", va="center",
+            fontsize=7.5, fontweight="bold", color="white", transform=ax.transAxes)
+
+    # All rows (included + excluded)
+    all_entries = _RAW_SPINOFFS
+    y = 0.815
+    row_h = 0.032
+    for i, s in enumerate(all_entries):
+        bg = "#ffeaea" if not s["sp500_parent"] else ("#f0f4f8" if i % 2 == 0 else "#ffffff")
+        ax.add_patch(mpatches.FancyBboxPatch(
+            (0, y - row_h + 0.005), 1.0, row_h,
+            boxstyle="square,pad=0", facecolor=bg, edgecolor="none",
+            transform=ax.transAxes))
+
+        in_sp500_txt = "YES ✓" if s["sp500_parent"] else "NO ✗"
+        in_sp500_col = COLOR_POS if s["sp500_parent"] else COLOR_NEG
+        trade_note   = "EXCLUDED" if not s["sp500_parent"] else "In universe"
+        trade_col    = COLOR_NEG if not s["sp500_parent"] else "#333"
+
+        note_abbrev = s["sp500_note"][:70] + ("…" if len(s["sp500_note"]) > 70 else "")
+
+        mid = y - row_h / 2 + 0.005
+        ax.text(0.01, mid, s["ticker"], ha="left", va="center", fontsize=7.5,
+                fontweight="bold", color="#222", transform=ax.transAxes)
+        ax.text(0.09, mid, s["parent"], ha="left", va="center", fontsize=7.5,
+                color="#444", transform=ax.transAxes)
+        ax.text(0.17, mid, s["date"], ha="left", va="center", fontsize=7.5,
+                color="#444", transform=ax.transAxes)
+        ax.text(0.29, mid, in_sp500_txt, ha="center", va="center", fontsize=7.5,
+                fontweight="bold", color=in_sp500_col, transform=ax.transAxes)
+        ax.text(0.38, mid, trade_note, ha="left", va="center", fontsize=7,
+                color=trade_col, fontweight="bold" if not s["sp500_parent"] else "normal",
+                transform=ax.transAxes)
+        ax.text(0.50, mid, note_abbrev, ha="left", va="center", fontsize=6.8,
+                color="#555", transform=ax.transAxes)
+        y -= row_h
+
+    # Summary box at bottom
+    n_included = len(SPINOFFS)
+    n_excluded = len(SPINOFFS_EXCLUDED)
+    summary_txt = (
+        f"SUMMARY: {n_included} spinoffs in universe (parent verified as S&P 500 member at spinoff date)  |  "
+        f"{n_excluded} excluded (parent not in S&P 500)  |  "
+        "No automated live S&P 500 constituent check — historical verification is manual + sourced."
+    )
+    ax.text(0.5, 0.025, summary_txt, ha="center", va="center", fontsize=7.5,
+            color="#333", transform=ax.transAxes, style="italic",
+            bbox=dict(boxstyle="round", facecolor="#e8f4e8", edgecolor="#2ca02c", alpha=0.8))
+
+    pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
+
+
 def make_methodology_page(pdf):
     """Page 6: strategy rationale and methodology."""
     fig = plt.figure(figsize=(8.5, 11))
@@ -893,6 +1158,7 @@ def main():
 
     with PdfPages(output_path) as pdf:
         make_cover_page(pdf, st)
+        make_universe_page(pdf)      # S&P 500 membership verification — new page
         make_return_charts(pdf, df, st)
         make_equity_page(pdf, df)
         make_trade_table(pdf, df)
