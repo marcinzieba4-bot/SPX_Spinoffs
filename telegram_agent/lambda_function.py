@@ -37,8 +37,9 @@ import time as _time
 
 
 class _CWHandler(logging.Handler):
-    _LOG_GROUP  = '/aws/lambda/spx-spinoffs-telegram-agent'
-    _LOG_STREAM = 'telegram-poller'
+    # Use the existing permitted log group (same pattern as daily-digest-telegram-webhook)
+    _LOG_GROUP  = '/aws/lambda/daily-trends-digest'
+    _LOG_STREAM = 'spx-spinoffs-poller'
     _seq_token  = None
 
     def __init__(self):
