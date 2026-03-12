@@ -32,7 +32,44 @@ import matplotlib.patches as mpatches
 import matplotlib.gridspec as gridspec
 from matplotlib.backends.backend_pdf import PdfPages
 import seaborn as sns
-from scipy import stats
+try:
+    from scipy import stats as _scipy_stats
+    def _ttest_1samp(a, popmean):
+        return _scipy_stats.ttest_1samp(a, popmean)
+except ImportError:  # Lambda package: scipy stripped to save space
+    import math as _math
+    def _betainc(a, b, x):
+        """Regularized incomplete beta via Lentz continued fraction."""
+        if x <= 0: return 0.0
+        if x >= 1: return 1.0
+        if x > (a + 1) / (a + b + 2):
+            return 1.0 - _betainc(b, a, 1.0 - x)
+        lbeta = _math.lgamma(a) + _math.lgamma(b) - _math.lgamma(a + b)
+        front = _math.exp(_math.log(x)*a + _math.log(1-x)*b - lbeta) / a
+        tiny = 1e-300
+        f, C, D = tiny, tiny, 0.0
+        for m in range(300):
+            for j in (0, 1):
+                if m == 0 and j == 0:
+                    d = 1.0
+                elif j == 0:
+                    d = m*(b-m)*x / ((a+2*m-1)*(a+2*m))
+                else:
+                    d = -(a+m)*(a+b+m)*x / ((a+2*m)*(a+2*m+1))
+                D = 1/(1 + d*D) if abs(1+d*D) > tiny else 1/tiny
+                C = 1 + d/C if abs(C) > tiny else 1
+                delta = C * D
+                f *= delta
+                if abs(delta - 1) < 1e-10:
+                    return front * f
+        return front * f
+    class _TtestResult:
+        def __init__(self, s, p): self.statistic, self.pvalue = s, p
+    def _ttest_1samp(a, popmean):
+        n = len(a); diff = np.asarray(a) - popmean
+        t = diff.mean() / (diff.std(ddof=1) / _math.sqrt(n))
+        p = _betainc((n-1)/2, 0.5, (n-1)/(n-1+t*t))
+        return _TtestResult(float(t), float(p))
 from datetime import datetime, timedelta
 import warnings
 import io
@@ -460,7 +497,8 @@ def compute_stats(df: pd.DataFrame) -> dict:
     mean_alpha = alphas.mean()
 
     # t-test: is mean alpha significantly > 0?
-    t_stat, p_value = stats.ttest_1samp(alphas, 0)
+    result = _ttest_1samp(alphas, 0)
+    t_stat, p_value = result.statistic, result.pvalue
 
     # Sharpe-like (alpha / std_alpha)
     if alphas.std() > 0:
